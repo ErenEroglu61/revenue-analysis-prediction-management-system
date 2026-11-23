@@ -1,0 +1,3 @@
+# Script ile yeniden üretilen dosyalar
+data/processed/
+__pycache__/
