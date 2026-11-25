@@ -99,7 +99,15 @@ revenue-analysis-prediction-management-system/
 │   ├── 01_kavramsal_tasarim_ER_modeli.pdf     # Adım 1 raporu
 │   ├── gorseller/                             # ER diyagramları (PNG)
 │   └── kaynak/er_raporu.py                    # PDF ve diyagramları üreten script
-├── database/                                  # (planlanan) numaralı SQL scriptleri: 01_create_database.sql …
+├── database/
+│   ├── 00_hepsini_calistir.sql                # 01–05'i sırayla çalıştırır (SQLCMD modu)
+│   ├── 01_create_database.sql                 # GelirAnalizDB + norm şeması
+│   ├── 02_create_tables.sql                   # 35 tablo: PK, FK, CHECK, UNIQUE, DEFAULT
+│   ├── 03_insert_lookup_data.sql              # 25 lookup tablosu (otomatik üretilir)
+│   ├── 04_insert_sample_data.sql              # 24 örnek kişi + ML tabloları (otomatik üretilir)
+│   ├── 05_normalization_examples.sql          # 6 normalizasyon örneği (1NF, 2NF, 3NF, BCNF)
+│   ├── 06_tablo_goruntuleri.sql               # rapor için tablo yapısı / içerik sorguları
+│   └── kaynak/sql_uret.py                     # 03 ve 04'ü veri setinden üretir
 ├── ml/                                        # (planlanan) model eğitimi ve tahmin scriptleri
 └── README.md
 ```
@@ -138,8 +146,20 @@ jupyter notebook analysis/eda.ipynb
 python rapor_ve_degerlendirmeler/kaynak/er_raporu.py
 ```
 
-Veritabanı kurulumu tamamlandığında `database/` altındaki SQL scriptleri numara sırasıyla çalıştırılacaktır.
-Böylece veritabanı sıfırdan yeniden kurulabilir. Komutlar ilgili adımlar tamamlandıkça buraya eklenecektir.
+```bash
+# 5) Lookup ve örnek veri INSERT scriptlerini veri setinden yeniden üret (03 ve 04; isteğe bağlı)
+python database/kaynak/sql_uret.py
+```
+
+**Veritabanını kurmak:** SSMS'te `database/01_…` → `05_…` dosyalarını sırayla açıp çalıştırın (F5).
+Ya da komut satırından, `database/` klasörü içindeyken:
+
+```bash
+sqlcmd -S localhost\SQLEXPRESS -E -i 00_hepsini_calistir.sql
+```
+
+Tablo yapısını ve içeriğini görmek için `06_tablo_goruntuleri.sql` kullanılır. Ara rapor için hangi
+görüntünün nereden alınacağı: [`rapor_ve_degerlendirmeler/02_ara_rapor_rehberi.md`](rapor_ve_degerlendirmeler/02_ara_rapor_rehberi.md).
 
 ## Deneyler
 
@@ -182,8 +202,8 @@ Ayrıntılar: [`reports/`](reports/) ve [`analysis/eda.ipynb`](analysis/eda.ipyn
 | – | EDA | Dağılımlar, gelir ilişkileri, korelasyon, Cramér's V, MI, PSI, aykırı değerler | `analysis/eda.ipynb` | ✅ |
 | 0 | Ortam kurulumu | SQL Server 2022 Developer, SSMS, ODBC Driver 18, `pyodbc` | Çalışan MSSQL bağlantısı | ⬜ |
 | 1 | Kavramsal tasarım | Varlıklar, ilişkiler, kardinaliteler, ER diyagramları, veri sözlüğü | `rapor_ve_degerlendirmeler/01_...pdf` | ✅ |
-| 2 | Normalizasyon | Fonksiyonel bağımlılıklar; 1NF → 2NF → 3NF → BCNF gerekçeleri | Normalizasyon raporu (PDF) | ⬜ |
-| 3 | Fiziksel tasarım (DDL) | `CREATE DATABASE`, tablolar, veri tipleri, PK/FK, `CHECK`, `UNIQUE`, `DEFAULT`, `NOT NULL` | `database/01_...sql`, `02_...sql` | ⬜ |
+| 2 | Normalizasyon | Fonksiyonel bağımlılıklar; 1NF → 2NF → 3NF → BCNF gerekçeleri, 6 örnek | `database/05_normalization_examples.sql`, Ara Rapor 1 | 🟨 scriptler hazır, rapor yazılacak |
+| 3 | Fiziksel tasarım (DDL) | `CREATE DATABASE`, tablolar, veri tipleri, PK/FK, `CHECK`, `UNIQUE`, `DEFAULT`, `NOT NULL`; örnek veri | `database/01`–`04` | ✅ |
 | 4 | Veri yükleme (ETL) | Ham CSV → staging tablo (`BULK INSERT` / Python) → `INSERT … SELECT` ile lookup ve ana tablolar; satır sayısı ve FK doğrulaması | ETL scriptleri, doğrulama raporu | ⬜ |
 | 5 | Sorgular | `JOIN`, `GROUP BY/HAVING`, alt sorgu, `CTE`, pencere fonksiyonları, `PIVOT`; EDA bulgularının SQL ile tekrarı | Analitik sorgu scriptleri | ⬜ |
 | 6 | Programlanabilir nesneler | `vw_PersonFull`, `vw_MLFeatures`; stored procedure, fonksiyon (`fn_AgeGroup`), audit trigger, `TRY…CATCH` ile transaction | View / SP / trigger scriptleri | ⬜ |
@@ -193,7 +213,7 @@ Ayrıntılar: [`reports/`](reports/) ve [`analysis/eda.ipynb`](analysis/eda.ipyn
 | 10 | ML entegrasyonu | `vw_MLFeatures`'tan eğitim; `ML_MODEL`, `MODEL_METRIC`, `PREDICTION` tablolarına yazma; model karşılaştırması | `ml/` scriptleri, model raporu | ⬜ |
 | 11 | Dokümantasyon | README, final rapor (ER diyagramı, normalizasyon, sonuçlar), sunum | Final rapor | ⬜ |
 
-✅ tamamlandı · ⬜ planlandı
+✅ tamamlandı · 🟨 kısmen · ⬜ planlandı
 
 ## Ekip
 
