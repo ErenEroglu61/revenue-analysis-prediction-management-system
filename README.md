@@ -107,7 +107,12 @@ revenue-analysis-prediction-management-system/
 │   ├── 04_insert_sample_data.sql              # 24 örnek kişi + ML tabloları (otomatik üretilir)
 │   ├── 05_normalization_examples.sql          # 6 normalizasyon örneği (1NF, 2NF, 3NF, BCNF)
 │   ├── 06_tablo_goruntuleri.sql               # rapor için tablo yapısı / içerik sorguları
-│   └── kaynak/sql_uret.py                     # 03 ve 04'ü veri setinden üretir
+│   ├── 07_etl_staging.sql                     # ETL: stg.CENSUS_RAW staging tablosu
+│   ├── 08_etl_transform.sql                   # ETL: staging → lookup + 7 ana tablo (tek transaction)
+│   ├── 09_etl_dogrulama.sql                   # ETL: satır sayısı, içerik ve kayıpsızlık kontrolleri
+│   └── kaynak/
+│       ├── sql_uret.py                        # 03 ve 04'ü veri setinden üretir
+│       └── etl_yukle.py                       # ETL çalıştırıcısı: CSV → staging → 08 → 09
 ├── ml/                                        # (planlanan) model eğitimi ve tahmin scriptleri
 └── README.md
 ```
@@ -161,6 +166,24 @@ sqlcmd -S localhost\SQLEXPRESS -E -i 00_hepsini_calistir.sql
 Tablo yapısını ve içeriğini görmek için `06_tablo_goruntuleri.sql` kullanılır. Ara rapor için hangi
 görüntünün nereden alınacağı: [`rapor_ve_degerlendirmeler/02_ara_rapor_rehberi.md`](rapor_ve_degerlendirmeler/02_ara_rapor_rehberi.md).
 
+**Tüm veri setini yüklemek (ETL):** 01–03 çalıştıktan sonra, proje kök dizininden:
+
+```bash
+python database/kaynak/etl_yukle.py                      # varsayılan sunucu: localhost\SQLEXPRESS
+python database/kaynak/etl_yukle.py --sadece-dogrula     # yalnızca 09 doğrulamasını çalıştırır
+```
+
+1. `*_clean.csv` dosyaları `stg.CENSUS_RAW` tablosuna metin olarak yüklenir (Extract).
+2. `08` önce kalite kontrolü yapar (tip dönüşümü, zorunlu alanlar, kod → üst grup bağımlılığı).
+   Ardından tek bir transaction içinde ana ve ML tablolarını boşaltır, lookup'lara yalnızca yeni
+   değerleri ekler ve 7 ana tabloyu `INSERT … SELECT` ile doldurur. `PersonID = RecordID = StagingID` olur.
+3. `09`, 16 kontrolün sonucunu OK/HATA olarak listeler. En güçlü kontrol kayıpsızlıktır: 42 sütun
+   normalize tablolardan geri kurulur ve staging ile iki yönlü `EXCEPT` sonucu 0 satır olmalıdır.
+
+Script tekrar tekrar çalıştırılabilir; yaklaşık 1 dakika sürer. 04'teki 24 örnek kişinin ve örnek ML
+kayıtlarının yerini tam veri alır. 05'teki normalizasyon örnekleri örnek veriye göre yazıldığı için
+onları göstermek gerektiğinde veritabanı `00_hepsini_calistir.sql` ile yeniden kurulmalıdır.
+
 ## Deneyler
 
 ### Ön analiz ve EDA bulguları
@@ -200,11 +223,11 @@ Ayrıntılar: [`reports/`](reports/) ve [`analysis/eda.ipynb`](analysis/eda.ipyn
 | – | Ön analiz | Veri okuma, `?` → NULL, tekrar eden satır/sütun analizi, temizleme | `analysis/pre_analiz.py`, `reports/pre_analiz_raporu.md` | ✅ |
 | – | Türetilmiş özellikler | 9 özellik (education_level, age_group, full_year_worker …) | `analysis/turetilmis_ozellikler.py` | ✅ |
 | – | EDA | Dağılımlar, gelir ilişkileri, korelasyon, Cramér's V, MI, PSI, aykırı değerler | `analysis/eda.ipynb` | ✅ |
-| 0 | Ortam kurulumu | SQL Server 2022 Developer, SSMS, ODBC Driver 18, `pyodbc` | Çalışan MSSQL bağlantısı | ⬜ |
+| 0 | Ortam kurulumu | SQL Server 2022 Express, SSMS, ODBC Driver 18, `pyodbc` | Çalışan MSSQL bağlantısı | ✅ |
 | 1 | Kavramsal tasarım | Varlıklar, ilişkiler, kardinaliteler, ER diyagramları, veri sözlüğü | `rapor_ve_degerlendirmeler/01_...pdf` | ✅ |
-| 2 | Normalizasyon | Fonksiyonel bağımlılıklar; 1NF → 2NF → 3NF → BCNF gerekçeleri, 6 örnek | `database/05_normalization_examples.sql`, Ara Rapor 1 | 🟨 scriptler hazır, rapor yazılacak |
+| 2 | Normalizasyon | Fonksiyonel bağımlılıklar; 1NF → 2NF → 3NF → BCNF gerekçeleri, 6 örnek | `database/05_normalization_examples.sql`, Ara Rapor 1 | ✅ |
 | 3 | Fiziksel tasarım (DDL) | `CREATE DATABASE`, tablolar, veri tipleri, PK/FK, `CHECK`, `UNIQUE`, `DEFAULT`, `NOT NULL`; örnek veri | `database/01`–`04` | ✅ |
-| 4 | Veri yükleme (ETL) | Ham CSV → staging tablo (`BULK INSERT` / Python) → `INSERT … SELECT` ile lookup ve ana tablolar; satır sayısı ve FK doğrulaması | ETL scriptleri, doğrulama raporu | ⬜ |
+| 4 | Veri yükleme (ETL) | Ham CSV → staging tablo (`BULK INSERT` / Python) → `INSERT … SELECT` ile lookup ve ana tablolar; satır sayısı ve FK doğrulaması | `database/07`–`09`, `database/kaynak/etl_yukle.py` | ✅ 295.173 kayıt, 16/16 kontrol OK |
 | 5 | Sorgular | `JOIN`, `GROUP BY/HAVING`, alt sorgu, `CTE`, pencere fonksiyonları, `PIVOT`; EDA bulgularının SQL ile tekrarı | Analitik sorgu scriptleri | ⬜ |
 | 6 | Programlanabilir nesneler | `vw_PersonFull`, `vw_MLFeatures`; stored procedure, fonksiyon (`fn_AgeGroup`), audit trigger, `TRY…CATCH` ile transaction | View / SP / trigger scriptleri | ⬜ |
 | 7 | İndeksleme ve performans | Nonclustered/covering index; execution plan ve `STATISTICS IO/TIME` karşılaştırması | Performans raporu | ⬜ |
